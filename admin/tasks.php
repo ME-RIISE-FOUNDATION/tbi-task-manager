@@ -73,16 +73,18 @@ $rawEmp     = $_GET['employee'] ?? [];
 $fEmployees = is_array($rawEmp) ? array_values(array_filter($rawEmp)) : ($rawEmp ? [$rawEmp] : []);
 $rawStat    = $_GET['status']   ?? [];
 $fStatuses  = is_array($rawStat) ? array_values(array_filter($rawStat)) : ($rawStat ? [$rawStat] : []);
-$fPriority  = $_GET['priority'] ?? '';
+$rawPri     = $_GET['priority'] ?? [];
+$fPriorities = is_array($rawPri) ? array_values(array_filter($rawPri)) : ($rawPri ? [$rawPri] : []);
+$fPriority  = count($fPriorities) === 1 ? $fPriorities[0] : ''; // kept for back-compat
 $fSearch    = trim($_GET['q']   ?? '');
 $fDate      = $_GET['date']     ?? '';
 // Single-value compat — used for the employee info card
 $fEmployee  = count($fEmployees) === 1 ? $fEmployees[0] : '';
 
-$filtered = array_values(array_filter($tasks, function($t) use ($fEmployees, $fStatuses, $fPriority, $fSearch, $fDate) {
-    if ($fEmployees && !in_array($t['Employee_ID'] ?? '', $fEmployees, true)) return false;
-    if ($fStatuses  && !in_array($t['Status']      ?? '', $fStatuses,  true)) return false;
-    if ($fPriority  && ($t['Priority']    ?? '') !== $fPriority) return false;
+$filtered = array_values(array_filter($tasks, function($t) use ($fEmployees, $fStatuses, $fPriorities, $fSearch, $fDate) {
+    if ($fEmployees  && !in_array($t['Employee_ID'] ?? '', $fEmployees,  true)) return false;
+    if ($fStatuses   && !in_array($t['Status']      ?? '', $fStatuses,   true)) return false;
+    if ($fPriorities && !in_array($t['Priority']    ?? '', $fPriorities, true)) return false;
     if ($fDate      && substr($t['Assigned_Date'] ?? '', 0, 10) !== $fDate) return false;
     if ($fSearch) {
         $hay = strtolower(($t['Task_Title'] ?? '') . ' ' . ($t['Description'] ?? ''));
@@ -129,7 +131,7 @@ include __DIR__ . '/../includes/header.php';
                      name="employee[]" value="<?= e($emp['Employee_ID']) ?>"
                      id="empChk_<?= e($emp['Employee_ID']) ?>"
                      <?= in_array($emp['Employee_ID'], $fEmployees, true) ? 'checked' : '' ?>>
-              <label class="form-check-label small" for="empChk_<?= e($emp['Employee_ID']) ?>">
+              <label class="form-check-label small" style="white-space:nowrap" for="empChk_<?= e($emp['Employee_ID']) ?>">
                 <?= e($emp['Name']) ?>
                 <span class="text-muted" style="font-size:.7rem"> — <?= e($emp['Designation'] ?? '') ?></span>
               </label>
@@ -164,12 +166,29 @@ include __DIR__ . '/../includes/header.php';
         </div>
       </div>
       <div class="col-6 col-sm-4 col-lg-2">
-        <select class="form-select" name="priority">
-          <option value="">All Priority</option>
-          <?php foreach (PRIORITIES as $p): ?>
-          <option value="<?= $p ?>" <?= $fPriority === $p ? 'selected' : '' ?>><?= $p ?></option>
-          <?php endforeach; ?>
-        </select>
+        <div class="dropdown w-100" style="position:relative;z-index:1050">
+          <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start fw-normal"
+                  type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+            <span id="priFilterLabel"><?php
+              if (!$fPriorities) echo 'All Priorities';
+              elseif (count($fPriorities) === 1) echo e($fPriorities[0]);
+              else echo count($fPriorities) . ' priorities';
+            ?></span>
+          </button>
+          <div class="dropdown-menu p-2" style="min-width:160px;z-index:1055">
+            <?php foreach (PRIORITIES as $p): ?>
+            <div class="form-check mb-1">
+              <input class="form-check-input pri-filter-chk" type="checkbox"
+                     name="priority[]" value="<?= e($p) ?>"
+                     id="priChk_<?= e($p) ?>"
+                     <?= in_array($p, $fPriorities, true) ? 'checked' : '' ?>>
+              <label class="form-check-label small" for="priChk_<?= e($p) ?>">
+                <?= e($p) ?>
+              </label>
+            </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
       </div>
       <div class="col-6 col-sm-4 col-lg-2">
         <input type="date" class="form-control" name="date" value="<?= e($fDate) ?>">
@@ -329,6 +348,16 @@ include __DIR__ . '/../includes/header.php';
     else statLabel.textContent = checked.length + ' statuses selected';
   }
   statChks.forEach(c => c.addEventListener('change', updateStatLabel));
+
+  const priChks  = document.querySelectorAll('.pri-filter-chk');
+  const priLabel = document.getElementById('priFilterLabel');
+  function updatePriLabel() {
+    const checked = [...priChks].filter(c => c.checked);
+    if (checked.length === 0) priLabel.textContent = 'All Priorities';
+    else if (checked.length === 1) priLabel.textContent = checked[0].nextElementSibling.textContent.trim();
+    else priLabel.textContent = checked.length + ' priorities selected';
+  }
+  priChks.forEach(c => c.addEventListener('change', updatePriLabel));
 })();
 </script>
 
